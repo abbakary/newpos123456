@@ -9,6 +9,7 @@ from . import branch_metrics as views_branch
 from . import views_documents
 from . import views_quick_start
 from . import views_start_order
+from . import views_invoice
 
 app_name = "tracker"
 

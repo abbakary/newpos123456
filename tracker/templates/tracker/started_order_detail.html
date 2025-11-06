@@ -174,14 +174,21 @@
 
               container.innerHTML = 'Loading...';
               fetch('{% url "tracker:api_service_types" %}', { method: 'GET', headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value, 'X-Requested-With': 'XMLHttpRequest' }})
-                .then(r => r.json())
+                .then(r => {
+                  if (!r.ok) {
+                    console.error('API response not ok:', r.status, r.statusText);
+                  }
+                  return r.json();
+                })
                 .then(data => {
+                  console.log('API response data:', data);
                   container.innerHTML = '';
                   const existingDesc = `{{ order.description|default:'' }}`.toLowerCase();
                   const orderType = ('{{ order.type|default:'' }}').toLowerCase();
                   const serviceTypes = Array.isArray(data.service_types) ? data.service_types : [];
                   const addOns = Array.isArray(data.service_addons) ? data.service_addons : [];
                   const inventoryItems = Array.isArray(data.inventory_items) ? data.inventory_items : [];
+                  console.log('Inventory items loaded:', inventoryItems.length, inventoryItems);
 
                   function renderCheckbox(name, mins, isChecked, extraBadge){
                     const safe = (name||'').replace(/[^A-Za-z0-9_]/g,'_');

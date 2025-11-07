@@ -136,10 +136,8 @@ function submitStartOrder(event) {
 
   const payload = {
     plate_number: plateNumber,
-    order_type: orderType,
-    service_selection: services
+    order_type: orderType
   };
-  if (estimatedDuration) payload.estimated_duration = Number(estimatedDuration);
   if (useExisting && existingCustomerId) {
     payload.use_existing_customer = true;
     payload.existing_customer_id = Number(existingCustomerId);

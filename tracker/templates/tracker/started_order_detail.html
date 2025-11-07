@@ -882,38 +882,6 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 
-function applyExtractionToOrder(extractionId) {
-  if (!confirm('Apply extracted data to this order?')) {
-    return;
-  }
-  
-  fetch('{% url "tracker:api_apply_extraction" %}', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': '{{ csrf_token }}'
-    },
-    body: JSON.stringify({
-      order_id: {{ order.id }},
-      extraction_id: extractionId,
-      apply_fields: ['customer_name', 'customer_phone', 'service_description', 'item_name', 'quantity', 'amount']
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      alert('Data applied successfully!');
-      location.reload();
-    } else {
-      alert('Error: ' + data.error);
-    }
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    alert('Error applying extraction data');
-  });
-}
-
 // Complete Order Logic
 document.addEventListener('DOMContentLoaded', function(){
   const completeBtn = document.getElementById('completeOrderBtn');
@@ -987,96 +955,6 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 
-// Document Upload and Extraction
-function uploadDocument() {
-  const fileInput = document.getElementById('documentUploadInput');
-  const file = fileInput.files[0];
-
-  if (!file) {
-    alert('Please select a file');
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('document_type', 'invoice');
-  formData.append('order_id', {{ order.id }});
-
-  const uploadBtn = document.getElementById('uploadDocumentBtn');
-  const progressContainer = document.getElementById('uploadProgressContainer');
-  const progressBar = document.getElementById('uploadProgressBar');
-  const statusText = document.getElementById('uploadStatusText');
-
-  uploadBtn.disabled = true;
-  fileInput.disabled = true;
-  progressContainer.style.display = 'block';
-
-  fetch('{% url "tracker:api_documents_upload" %}', {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': '{{ csrf_token }}'
-    },
-    body: formData
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      progressBar.style.width = '100%';
-      statusText.textContent = 'Document uploaded! Processing extraction...';
-
-      setTimeout(function() {
-        location.reload();
-      }, 1000);
-    } else {
-      alert('Upload failed: ' + (data.error || 'Unknown error'));
-      uploadBtn.disabled = false;
-      fileInput.disabled = false;
-      progressContainer.style.display = 'none';
-    }
-  })
-  .catch(error => {
-    console.error('Error uploading document:', error);
-    alert('Error uploading document: ' + error.message);
-    uploadBtn.disabled = false;
-    fileInput.disabled = false;
-    progressContainer.style.display = 'none';
-  });
-}
-
-// Create Invoice from Extraction
-function showCreateInvoiceModal(extractionId) {
-  fetch('{% url "tracker:api_get_extraction" %}' + '?extraction_id=' + extractionId, {
-    method: 'GET',
-    headers: {
-      'X-CSRFToken': '{{ csrf_token }}',
-      'X-Requested-With': 'XMLHttpRequest'
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      const extraction = data.extraction;
-      document.getElementById('invoiceExtractionId').value = extractionId;
-
-      document.getElementById('previewCustomer').textContent = extraction.extracted_customer_name || '-';
-      document.getElementById('previewPlate').textContent = extraction.extracted_vehicle_plate || '-';
-      document.getElementById('previewDescription').textContent = extraction.extracted_order_description || '-';
-      document.getElementById('previewNetValue').textContent = extraction.net_value || '-';
-      document.getElementById('previewVatAmount').textContent = extraction.vat_amount || '-';
-
-      document.getElementById('invoiceReference').value = extraction.reference || extraction.extracted_vehicle_plate || '';
-
-      const modal = new bootstrap.Modal(document.getElementById('createInvoiceFromExtractionModal'));
-      modal.show();
-    } else {
-      alert('Failed to load extraction data: ' + (data.error || 'Unknown error'));
-    }
-  })
-  .catch(error => {
-    console.error('Error loading extraction:', error);
-    alert('Error loading extraction data');
-  });
-}
 
 function submitCreateInvoiceForm() {
   const extractionId = document.getElementById('invoiceExtractionId').value;

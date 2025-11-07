@@ -6,8 +6,6 @@ from . import views
 from .views import CustomLoginView, CustomLogoutView
 from .views_api_fix import api_customer_groups_data_fixed
 from . import branch_metrics as views_branch
-from . import views_documents
-from . import views_quick_start
 from . import views_start_order
 from . import views_invoice
 
@@ -139,14 +137,6 @@ urlpatterns = [
     path("api/customers/check-duplicate/", views.api_check_customer_duplicate, name="api_check_customer_duplicate"),
     path("api/service-distribution/", views.api_service_distribution, name="api_service_distribution"),
 
-    # Document-related quick start (keep quick-start integration)
-    path("api/orders/quick-start/", views_documents.start_quick_order, name="api_quick_start_order"),
-    # Document upload endpoint
-    path("api/documents/upload/", views_documents.upload_document, name="api_documents_upload"),
-    path("api/documents/<int:doc_id>/status/", views_documents.get_document_status, name="api_documents_status"),
-    path("api/documents/create-order/", views_documents.create_order_from_document, name="api_documents_create_order"),
-    path("api/extractions/get/", views_documents.api_get_extraction, name="api_get_extraction"),
-    path("api/invoices/create-from-extraction/", views_documents.api_create_invoice_from_extraction, name="api_create_invoice_from_extraction"),
 
     # Start Order and Started Orders Dashboard
     path("api/orders/start/", views_start_order.api_start_order, name="api_start_order"),
@@ -156,17 +146,8 @@ urlpatterns = [
     path("orders/started/<int:order_id>/", views_start_order.started_order_detail, name="started_order_detail"),
     path("orders/started/<int:order_id>/report-overrun/", views_start_order.api_record_overrun_reason, name="api_report_overrun"),
     path("orders/overrun-reports/", views_start_order.overrun_reports, name="overrun_reports"),
-    path("api/orders/apply-extraction/", views_start_order.api_apply_extraction_to_order, name="api_apply_extraction"),
-    path("api/orders/auto-fill-extraction/", views_start_order.api_auto_fill_from_extraction, name="api_auto_fill_extraction"),
     path("api/orders/started/kpis/", views_start_order.api_started_orders_kpis, name="api_started_orders_kpis"),
 
-    # Quick Start Integration
-    path("customer/register-with-extraction/", views_quick_start.customer_register_with_extraction, name="customer_register_extraction"),
-    path("customer/register-with-extraction/<str:vehicle_plate>/", views_quick_start.customer_register_with_extraction, name="customer_register_extraction_plate"),
-    path("orders/create-with-extraction/", views_quick_start.order_create_with_extraction, name="order_create_extraction"),
-    path("api/quick-start/auto-fill-order/", views_quick_start.auto_fill_order_from_extraction, name="api_auto_fill_order"),
-    path("api/quick-start/detect-customer-mismatch/", views_quick_start.detect_and_merge_customer_data, name="api_detect_mismatch"),
-    path("api/quick-start/apply-customer-merge/", views_quick_start.apply_customer_data_merge, name="api_apply_merge"),
 
     # Invoices
     path("invoices/create/", views_invoice.invoice_create, name="invoice_create"),

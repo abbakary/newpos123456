@@ -1,6 +1,6 @@
 """
 Views for quick order start workflow and started orders management.
-Allows users to quickly start an order with plate number, then proceed with document extraction.
+Allows users to quickly start an order with plate number, then complete the order.
 """
 
 import json
@@ -12,9 +12,8 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db import transaction
 
-from .models import Order, Customer, Vehicle, Branch, DocumentScan, DocumentExtraction, DocumentExtractionItem, ServiceType, ServiceAddon, InventoryItem
+from .models import Order, Customer, Vehicle, Branch, ServiceType, ServiceAddon, InventoryItem
 from .utils import get_user_branch
-from .extraction_utils import process_invoice_extraction
 
 logger = logging.getLogger(__name__)
 
@@ -424,132 +423,6 @@ def started_order_detail(request, order_id):
             except Exception as e:
                 logger.error(f"Error updating order details: {e}")
 
-        elif action == 'upload_document':
-            # Handle document upload and extraction
-            if 'document' in request.FILES:
-                doc_file = request.FILES['document']
-                doc_type = request.POST.get('document_type', 'invoice')
-                
-                with transaction.atomic():
-                    doc_scan = DocumentScan.objects.create(
-                        order=order,
-                        vehicle_plate=order.vehicle.plate_number if order.vehicle else '',
-                        customer_phone=order.customer.phone,
-                        file=doc_file,
-                        document_type=doc_type,
-                        uploaded_by=request.user,
-                        file_name=doc_file.name,
-                        file_size=doc_file.size,
-                        file_mime_type=doc_file.content_type,
-                        extraction_status='processing'
-                    )
-                    
-                    # Process extraction
-                    try:
-                        extracted_data = process_invoice_extraction(doc_scan)
-                        
-                        if 'error' not in extracted_data:
-                            # Persist extraction with invoice metadata
-                            from decimal import Decimal, InvalidOperation
-                            def _to_decimal_safe(v):
-                                try:
-                                    if v is None:
-                                        return None
-                                    if isinstance(v, (int, float, Decimal)):
-                                        return Decimal(str(v))
-                                    s = str(v).replace(',', '').strip()
-                                    return Decimal(s)
-                                except (InvalidOperation, Exception):
-                                    return None
-                            # Ensure JSON-safe payload in case extractor returns Decimals
-                            def _to_json_safe(value):
-                                if isinstance(value, Decimal):
-                                    try:
-                                        return float(value)
-                                    except Exception:
-                                        return str(value)
-                                if isinstance(value, (list, tuple)):
-                                    return [_to_json_safe(v) for v in value]
-                                if isinstance(value, dict):
-                                    return {k: _to_json_safe(v) for k, v in value.items()}
-                                return value
-
-                            json_safe_extracted = _to_json_safe(extracted_data)
-
-                            extraction = DocumentExtraction.objects.create(
-                                document=doc_scan,
-                                extracted_customer_name=extracted_data.get('customer_name') or extracted_data.get('extracted_customer_name'),
-                                extracted_customer_phone=extracted_data.get('customer_phone') or extracted_data.get('extracted_customer_phone'),
-                                extracted_customer_email=extracted_data.get('customer_email') or extracted_data.get('extracted_customer_email'),
-                                extracted_customer_address=extracted_data.get('address') or extracted_data.get('extracted_customer_address'),
-                                extracted_vehicle_plate=extracted_data.get('plate_number') or extracted_data.get('extracted_vehicle_plate'),
-                                extracted_order_description=extracted_data.get('service_description') or extracted_data.get('extracted_order_description'),
-                                extracted_item_name=extracted_data.get('item_name'),
-                                extracted_brand=extracted_data.get('brand'),
-                                extracted_quantity=extracted_data.get('quantity') or extracted_data.get('extracted_quantity'),
-                                extracted_amount=extracted_data.get('amount') or extracted_data.get('extracted_amount'),
-                                code_no=extracted_data.get('code_no') or extracted_data.get('customer_code'),
-                                reference=extracted_data.get('reference'),
-                                net_value=_to_decimal_safe(extracted_data.get('net_value') or extracted_data.get('net')),
-                                vat_amount=_to_decimal_safe(extracted_data.get('vat_amount') or extracted_data.get('vat')),
-                                gross_value=_to_decimal_safe(extracted_data.get('gross_value') or extracted_data.get('gross')),
-                                extracted_data_json=json_safe_extracted,
-                                confidence_overall=extracted_data.get('confidence_overall', 80),
-                            )
-
-                            # Persist line items if present
-                            try:
-                                items = extracted_data.get('items') or extracted_data.get('structured_data', {}).get('items')
-                                if items and isinstance(items, list):
-                                    from decimal import Decimal
-                                    for idx, it in enumerate(items, start=1):
-                                        code = it.get('code') or it.get('item_code') or None
-                                        desc = it.get('description') or it.get('desc') or it.get('description_full') or str(it.get('description') or '')
-                                        qty = it.get('qty') or it.get('quantity')
-                                        unit = it.get('unit') or it.get('type')
-                                        rate = it.get('rate')
-                                        value = it.get('value')
-                                        # Normalize numeric fields
-                                        def _to_decimal(v):
-                                            try:
-                                                if v is None:
-                                                    return None
-                                                if isinstance(v, (int, float, Decimal)):
-                                                    return Decimal(str(v))
-                                                v_clean = str(v).replace(',', '').strip()
-                                                return Decimal(v_clean)
-                                            except Exception:
-                                                return None
-
-                                        qty_d = _to_decimal(qty)
-                                        rate_d = _to_decimal(rate)
-                                        value_d = _to_decimal(value)
-
-                                        DocumentExtractionItem.objects.create(
-                                            extraction=extraction,
-                                            line_no=idx,
-                                            code=code,
-                                            description=desc,
-                                            qty=qty_d,
-                                            unit=unit,
-                                            rate=rate_d,
-                                            value=value_d,
-                                        )
-                            except Exception as e:
-                                logger.warning(f"Failed to save extracted items: {e}")
-
-                            doc_scan.extraction_status = 'completed'
-                            doc_scan.extracted_at = timezone.now()
-                        else:
-                            doc_scan.extraction_status = 'failed'
-                            doc_scan.extraction_error = extracted_data.get('error')
-
-                        doc_scan.save()
-                    except Exception as e:
-                        doc_scan.extraction_status = 'failed'
-                        doc_scan.extraction_error = str(e)
-                        doc_scan.save()
-                        logger.error(f"Error extracting document: {str(e)}")
         
         elif action == 'complete_order':
             # Mark order as completed
@@ -559,24 +432,12 @@ def started_order_detail(request, order_id):
             
             return redirect('tracker:started_orders_dashboard')
     
-    # Get related documents and extractions
-    documents = DocumentScan.objects.filter(order=order).order_by('-uploaded_at')
-    extractions = DocumentExtraction.objects.filter(
-        document__order=order
-    ).order_by('-extracted_at')
-    
-    # Get latest extraction for preview
-    latest_extraction = extractions.first()
-    
     active_tab = request.GET.get('tab', 'overview')
-    
+
     context = {
         'order': order,
         'customer': order.customer,
         'vehicle': order.vehicle,
-        'documents': documents,
-        'extractions': extractions,
-        'latest_extraction': latest_extraction,
         'active_tab': active_tab,
         'title': f'Order {order.order_number}',
     }
@@ -663,202 +524,6 @@ def overrun_reports(request: HttpRequest):
     return render(request, 'tracker/overrun_reports.html', context)
 
 
-@login_required
-@require_http_methods(["POST"])
-def api_apply_extraction_to_order(request):
-    """
-    API endpoint to apply extracted data to an order.
-
-    POST body:
-    {
-        "order_id": 123,
-        "extraction_id": 456,
-        "apply_fields": ["customer_name", "customer_phone", "service_description", "vehicle_plate"]
-    }
-    """
-    try:
-        data = json.loads(request.body)
-        order_id = data.get('order_id')
-        extraction_id = data.get('extraction_id')
-        apply_fields = data.get('apply_fields', [])
-
-        user_branch = get_user_branch(request.user)
-        order = get_object_or_404(Order, id=order_id, branch=user_branch)
-        extraction = get_object_or_404(DocumentExtraction, id=extraction_id)
-
-        with transaction.atomic():
-            # Ensure customer exists; if not, create from extraction
-            customer = order.customer
-            if not customer:
-                cust_name = extraction.extracted_customer_name or extraction.extracted_data_json.get('customer_name') or f'Customer {order.order_number}'
-                cust_phone = extraction.extracted_customer_phone or extraction.extracted_data_json.get('customer_phone') or ''
-                customer = Customer.objects.create(
-                    branch=user_branch,
-                    full_name=cust_name,
-                    phone=cust_phone,
-                    customer_type='personal'
-                )
-                order.customer = customer
-            else:
-                # Update existing customer fields
-                if 'customer_name' in apply_fields and (extraction.extracted_customer_name or extraction.extracted_data_json.get('customer_name')):
-                    customer.full_name = extraction.extracted_customer_name or extraction.extracted_data_json.get('customer_name')
-                if 'customer_phone' in apply_fields and (extraction.extracted_customer_phone or extraction.extracted_data_json.get('customer_phone')):
-                    customer.phone = extraction.extracted_customer_phone or extraction.extracted_data_json.get('customer_phone')
-                if 'customer_email' in apply_fields and (extraction.extracted_customer_email or extraction.extracted_data_json.get('customer_email')):
-                    customer.email = extraction.extracted_customer_email or extraction.extracted_data_json.get('customer_email')
-                customer.save()
-
-            # Ensure vehicle exists or match by plate
-            vehicle = order.vehicle
-            extracted_plate = (extraction.extracted_vehicle_plate or extraction.extracted_data_json.get('plate_number') or extraction.extracted_data_json.get('vehicle_plate') or '').strip()
-            if 'vehicle_plate' in apply_fields and extracted_plate:
-                # Normalize plate for lookup
-                plate_norm = extracted_plate.upper()
-                # Try to find existing vehicle in branch
-                existing_vehicle = Vehicle.objects.filter(plate_number__iexact=plate_norm, customer__branch=user_branch).select_related('customer').first()
-                if existing_vehicle:
-                    vehicle = existing_vehicle
-                    # attach to customer if different
-                    if vehicle.customer != customer:
-                        vehicle.customer = customer
-                        vehicle.save()
-                    order.vehicle = vehicle
-                else:
-                    # Create vehicle and attach
-                    vehicle = Vehicle.objects.create(
-                        customer=customer,
-                        plate_number=plate_norm,
-                        make=(extraction.extracted_vehicle_make or extraction.extracted_data_json.get('vehicle_make') or ''),
-                        model=(extraction.extracted_vehicle_model or extraction.extracted_data_json.get('vehicle_model') or ''),
-                        vehicle_type=(extraction.extracted_data_json.get('vehicle_type') or '')
-                    )
-                    order.vehicle = vehicle
-
-            # Update vehicle fields if we have a vehicle object
-            if order.vehicle and order.vehicle.id:
-                v = order.vehicle
-                if 'vehicle_make' in apply_fields and (extraction.extracted_vehicle_make or extraction.extracted_data_json.get('vehicle_make')):
-                    v.make = extraction.extracted_vehicle_make or extraction.extracted_data_json.get('vehicle_make')
-                if 'vehicle_model' in apply_fields and (extraction.extracted_vehicle_model or extraction.extracted_data_json.get('vehicle_model')):
-                    v.model = extraction.extracted_vehicle_model or extraction.extracted_data_json.get('vehicle_model')
-                v.save()
-
-            # Apply order data fields
-            if 'service_description' in apply_fields and (extraction.extracted_order_description or extraction.extracted_data_json.get('service_description')):
-                order.description = extraction.extracted_order_description or extraction.extracted_data_json.get('service_description')
-            if 'item_name' in apply_fields and (extraction.extracted_item_name or extraction.extracted_data_json.get('item_name')):
-                order.item_name = extraction.extracted_item_name or extraction.extracted_data_json.get('item_name')
-            if 'brand' in apply_fields and (extraction.extracted_brand or extraction.extracted_data_json.get('brand')):
-                order.brand = extraction.extracted_brand or extraction.extracted_data_json.get('brand')
-            if 'quantity' in apply_fields and (extraction.extracted_quantity or extraction.extracted_data_json.get('quantity')):
-                try:
-                    order.quantity = int(extraction.extracted_quantity or extraction.extracted_data_json.get('quantity'))
-                except (ValueError, TypeError):
-                    pass
-            # Amount handling if needed - storing to order.net_value if field exists
-            if 'amount' in apply_fields and (extraction.extracted_amount or extraction.extracted_data_json.get('amount')):
-                try:
-                    from decimal import Decimal
-                    amt = extraction.extracted_amount or extraction.extracted_data_json.get('amount')
-                    if hasattr(order, 'gross_value'):
-                        order.gross_value = Decimal(str(amt)).quantize(Decimal('0.01'))
-                    elif hasattr(order, 'amount'):
-                        order.amount = Decimal(str(amt)).quantize(Decimal('0.01'))
-                except Exception:
-                    pass
-
-            order.save()
-
-        return JsonResponse({
-            'success': True,
-            'message': 'Extraction data applied to order successfully',
-            'order_id': order.id
-        })
-
-    except Exception as e:
-        logger.error(f"Error applying extraction: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
-
-
-@login_required
-@require_http_methods(["POST"])
-def api_auto_fill_from_extraction(request):
-    """
-    API endpoint to auto-fill order fields based on latest extraction.
-    Returns the extracted data for the client to preview before applying.
-    
-    POST body:
-    {
-        "order_id": 123
-    }
-    
-    Response:
-    {
-        "success": true,
-        "data": {
-            "customer_name": "John Doe",
-            "customer_phone": "+255123456789",
-            "service_description": "Oil Change",
-            "estimated_minutes": 30,
-            ...
-        }
-    }
-    """
-    try:
-        data = json.loads(request.body)
-        order_id = data.get('order_id')
-        
-        user_branch = get_user_branch(request.user)
-        order = get_object_or_404(Order, id=order_id, branch=user_branch)
-        
-        # Get latest extraction for this order
-        extraction = DocumentExtraction.objects.filter(
-            document__order=order
-        ).order_by('-extracted_at').first()
-        
-        if not extraction:
-            return JsonResponse({
-                'success': False,
-                'error': 'No extraction data found for this order'
-            }, status=404)
-        
-        # Build response with extracted data
-        response_data = {
-            'customer_name': extraction.extracted_customer_name,
-            'customer_phone': extraction.extracted_customer_phone,
-            'customer_email': extraction.extracted_customer_email,
-            'vehicle_plate': extraction.extracted_vehicle_plate,
-            'vehicle_make': extraction.extracted_vehicle_make,
-            'vehicle_model': extraction.extracted_vehicle_model,
-            'service_description': extraction.extracted_order_description,
-            'item_name': extraction.extracted_item_name,
-            'brand': extraction.extracted_brand,
-            'quantity': extraction.extracted_quantity,
-            'amount': extraction.extracted_amount,
-            'matched_service': extraction.extracted_data_json.get('matched_service'),
-            'estimated_minutes': extraction.extracted_data_json.get('estimated_minutes'),
-        }
-        
-        # Remove None/empty values
-        response_data = {k: v for k, v in response_data.items() if v}
-        
-        return JsonResponse({
-            'success': True,
-            'data': response_data,
-            'extraction_id': extraction.id,
-            'confidence': extraction.confidence_overall,
-        })
-    
-    except Exception as e:
-        logger.error(f"Error auto-filling from extraction: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
 
 
 @login_required

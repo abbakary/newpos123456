@@ -58,60 +58,57 @@
     <div class="col-12">
       <div class="card shadow-sm">
         <div class="card-body">
-          <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-info btn-lg" data-bs-toggle="modal" data-bs-target="#editDetailsModal" onclick="setEditMode('customer')">
-              <i class="fa fa-user me-2"></i>Customer Info
-            </button>
-            {% if vehicle %}
-            <button class="btn btn-info btn-lg" data-bs-toggle="modal" data-bs-target="#editDetailsModal" onclick="setEditMode('vehicle')">
-              <i class="fa fa-car me-2"></i>Vehicle Info
-            </button>
-            {% endif %}
+          <div class="d-flex flex-wrap gap-3 justify-content-center">
+            <!-- Customer and Vehicle Info -->
+            <div class="btn-group" role="group">
+              <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#editDetailsModal" onclick="setEditMode('customer')">
+                <i class="fa fa-user me-2"></i>Customer Info
+              </button>
+              {% if vehicle %}
+              <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#editDetailsModal" onclick="setEditMode('vehicle')">
+                <i class="fa fa-car me-2"></i>Vehicle Info
+              </button>
+              {% endif %}
+            </div>
 
-            <!-- Upload Invoice for this order -->
-            <button type="button" id="uploadInvoiceBtn" class="btn btn-secondary btn-lg">
-              <i class="fa fa-file-upload me-2"></i>Upload Invoice
-            </button>
+            <!-- Order Management -->
+            <div class="btn-group" role="group">
+              <a href="{% url 'tracker:invoice_create_from_order' order_id=order.id %}" class="btn btn-primary">
+                <i class="fa fa-plus me-2"></i>Create Invoice
+              </a>
+              <button type="button" id="editOrderDetailsBtn" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editOrderDetailsModal">
+                <i class="fa fa-list me-2"></i>Edit Details
+              </button>
+            </div>
 
-            <!-- Create Invoice from this order -->
-            <a href="{% url 'tracker:invoice_create_from_order' order_id=order.id %}" class="btn btn-primary btn-lg">
-              <i class="fa fa-plus me-2"></i>Create Invoice
-            </a>
-
-            <!-- Edit Order Details (services) -->
-            <button type="button" id="editOrderDetailsBtn" class="btn btn-outline-primary btn-lg" data-bs-toggle="modal" data-bs-target="#editOrderDetailsModal">
-              <i class="fa fa-list me-2"></i>Edit Order Details
-            </button>
-
-            <!-- Complete flow: require overrun reason if ETA exceeded, then redirect to signature/complete page -->
-            <button type="button" id="completeOrderBtn" class="btn btn-success btn-lg">
+            <!-- Complete Order -->
+            <button type="button" id="completeOrderBtn" class="btn btn-success">
               <i class="fa fa-check me-2"></i>Complete Order
             </button>
+          </div>
 
-            <!-- Overrun Reason Modal -->
-            <div class="modal fade" id="overrunReasonModal" tabindex="-1">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title">Order Overrun Reason</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <!-- Overrun Reason Modal -->
+          <div class="modal fade" id="overrunReasonModal" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                  <h5 class="modal-title">Order Overrun Reason</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <p class="mb-2">This service order has exceeded the expected time. Please provide a reason before completing.</p>
+                  <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <textarea id="overrunReasonInput" class="form-control" rows="4" placeholder="Explain why this order exceeded its ETA (required)"></textarea>
+                    <div id="overrunReasonError" class="text-danger mt-2" style="display:none;"></div>
                   </div>
-                  <div class="modal-body">
-                    <p class="mb-2">This service order has exceeded the expected time. Please provide a reason before completing.</p>
-                    <div class="mb-3">
-                      <label class="form-label">Reason</label>
-                      <textarea id="overrunReasonInput" class="form-control" rows="4" placeholder="Explain why this order exceeded its ETA (required)"></textarea>
-                      <div id="overrunReasonError" class="text-danger mt-2" style="display:none;"></div>
-                    </div>
-                  </div>
-                  <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" id="saveOverrunReasonBtn" class="btn btn-warning">Save & Continue to Complete</button>
-                  </div>
+                </div>
+                <div class="modal-footer bg-light">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="button" id="saveOverrunReasonBtn" class="btn btn-warning">Save & Continue to Complete</button>
                 </div>
               </div>
             </div>
-
           </div>
 
           <!-- Edit Order Details Modal -->
@@ -168,26 +165,6 @@
           </div>
 
           <script>
-            // Open document modal and attach upload to this order
-            document.getElementById('uploadInvoiceBtn').addEventListener('click', function(){
-              // set order id on global docModal instance (guarded)
-              if (window.docModal) {
-                docModal.orderId = {{ order.id|default:'null' }};
-              }
-              // prefill vehicle plate if available
-              const plateEl = document.getElementById('vehiclePlate');
-              if (plateEl) plateEl.value = '{{ vehicle.plate_number|default:"" }}';
-              // reset file input and UI
-              document.getElementById('documentFile').value = '';
-              document.getElementById('fileNameDisplay').classList.add('d-none');
-              document.getElementById('extractionResults').classList.add('d-none');
-              document.getElementById('extractionError').classList.add('d-none');
-              document.getElementById('applyExtractionToOrderBtn').classList.add('d-none');
-
-              const modal = new bootstrap.Modal(document.getElementById('documentCaptureModal'));
-              modal.show();
-            });
-
             // Populate options in Edit Order Details modal
             document.getElementById('editOrderDetailsBtn').addEventListener('click', function(){
               const container = document.getElementById('orderServicesContainer');
@@ -220,17 +197,11 @@
                   function renderCheckbox(name, mins, isChecked, extraBadge){
                     const safe = (name||'').replace(/[^A-Za-z0-9_]/g,'_');
                     const id = 'od_opt_' + safe;
-                    const col = document.createElement('div'); col.className = 'col-md-6 col-lg-4';
-                    const cardClass = extraBadge ? 'addon-checkbox-card' : 'service-checkbox-card';
-                    const labelClass = extraBadge ? 'addon-checkbox-label' : 'service-checkbox-label';
-                    col.innerHTML = `<div class="${cardClass}">
+                    const col = document.createElement('div'); col.className = 'col-md-6';
+                    const badge = extraBadge ? ` <span class="badge bg-light text-dark ms-1">${extraBadge}</span>` : '';
+                    col.innerHTML = `<div class="form-check">
                       <input class="form-check-input od-option" type="checkbox" id="${id}" name="services" value="${name}" data-minutes="${mins||0}" ${isChecked?'checked':''}>
-                      <label class="${labelClass}" for="${id}">
-                        <div class="${extraBadge ? 'addon' : 'service'}-checkbox-content">
-                          <div class="${extraBadge ? 'addon' : 'service'}-checkbox-name">${name}</div>
-                          <div class="${extraBadge ? 'addon' : 'service'}-checkbox-duration"><i class="fa fa-clock-o me-1"></i>${mins||0} mins</div>
-                        </div>
-                      </label>
+                      <label class="form-check-label" for="${id}">${name} <span class="text-muted small">(${mins||0}m)</span>${badge}</label>
                     </div>`;
                     container.appendChild(col);
                   }
@@ -343,8 +314,6 @@
                 else { hint.style.display='none'; hint.textContent=''; }
               }
             }
-
-            // No-op: form will submit and be handled by server-side POST handler
           </script>
         </div>
       </div>
@@ -509,7 +478,6 @@
       <div class="alert alert-info text-center" role="alert">
         <i class="fa fa-info-circle me-2"></i>
         <strong>No documents uploaded yet.</strong>
-        <p class="mb-3 mt-2">Upload an invoice to auto-extract customer and service details.</p>
       </div>
       {% endif %}
     </div>
@@ -548,7 +516,6 @@
   </div>
 
 </div>
-
 
 <!-- Unified Edit Details Modal -->
 <div class="modal fade" id="editDetailsModal" tabindex="-1">
@@ -736,24 +703,21 @@ function applyExtractionToOrder(extractionId) {
     alert('Error applying extraction data');
   });
 }
-</script>
 
-<script>
+// Complete Order Logic
 document.addEventListener('DOMContentLoaded', function(){
   const completeBtn = document.getElementById('completeOrderBtn');
   if (!completeBtn) return;
 
-  const orderStarted = {{ order.started_at|default:'None'|yesno:'true,false' }}; // placeholder, will compute below
+  const orderStarted = {{ order.started_at|default:'None'|yesno:'true,false' }};
   const startedAtStr = '{{ order.started_at|date:"c" }}';
   const estimatedDuration = {{ order.estimated_duration|default:'null' }};
 
   function redirectToSignature(){
-    // Redirect to order detail page where signature/completion flow exists
     window.location.href = '{% url "tracker:order_detail" pk=order.id %}';
   }
 
   completeBtn.addEventListener('click', function(e){
-    // If not a service order or no ETA configured, go straight to signature
     const orderType = '{{ order.type|default:"" }}';
     if (orderType !== 'service' || !estimatedDuration) {
       redirectToSignature();
@@ -766,7 +730,6 @@ document.addEventListener('DOMContentLoaded', function(){
     const elapsedMinutes = Math.floor((now - startedAt) / 60000);
 
     if (elapsedMinutes <= (Number(estimatedDuration) || 0)){
-      // Not exceeded
       redirectToSignature();
       return;
     }
@@ -786,7 +749,6 @@ document.addEventListener('DOMContentLoaded', function(){
       errEl.style.display = 'none';
       if (!reason){ errEl.textContent = 'Please enter a reason for the delay.'; errEl.style.display = ''; return; }
 
-      // Post to API to save reason, then redirect to signature page
       fetch('{% url "tracker:api_report_overrun" order_id=order.id %}', {
         method: 'POST',
         headers: {
@@ -799,7 +761,6 @@ document.addEventListener('DOMContentLoaded', function(){
       .then(r => r.json())
       .then(data => {
         if (data.success){
-          // close modal then redirect
           const modalEl = document.getElementById('overrunReasonModal');
           const modal = bootstrap.Modal.getInstance(modalEl);
           if (modal) modal.hide();

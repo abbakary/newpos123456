@@ -34,6 +34,8 @@ def api_start_order(request):
 
     If plate exists in current branch and use_existing_customer is not provided, the endpoint will return existing_customer info
     so the frontend can ask the user whether to reuse existing customer or continue as new.
+
+    If an order with status='created' already exists for this plate, return that order instead of creating a duplicate.
     """
     try:
         data = json.loads(request.body)
@@ -52,24 +54,44 @@ def api_start_order(request):
 
         user_branch = get_user_branch(request.user)
 
-        # Check for existing vehicle/customer in this branch
+        # Check for existing started order for this plate (status='created')
+        # If one exists and hasn't been updated yet, return it instead of creating a duplicate
         existing_vehicle = Vehicle.objects.filter(plate_number__iexact=plate_number, customer__branch=user_branch).select_related('customer').first()
-        if existing_vehicle and not use_existing and not existing_customer_id:
-            # Inform frontend that a customer exists for this plate
-            return JsonResponse({
-                'success': True,
-                'existing_customer': {
-                    'id': existing_vehicle.customer.id,
-                    'full_name': existing_vehicle.customer.full_name,
-                    'phone': existing_vehicle.customer.phone,
-                },
-                'existing_vehicle': {
-                    'id': existing_vehicle.id,
-                    'plate': existing_vehicle.plate_number,
-                    'make': existing_vehicle.make,
-                    'model': existing_vehicle.model,
-                }
-            }, status=200)
+        if existing_vehicle:
+            # Check if there's already a created order for this vehicle
+            existing_order = Order.objects.filter(
+                vehicle=existing_vehicle,
+                status='created'
+            ).order_by('-created_at').first()
+
+            if existing_order and not use_existing and not existing_customer_id:
+                # Return existing order instead of creating a duplicate
+                return JsonResponse({
+                    'success': True,
+                    'order_id': existing_order.id,
+                    'order_number': existing_order.order_number,
+                    'plate_number': plate_number,
+                    'started_at': existing_order.started_at.isoformat(),
+                    'existing_order': True,
+                    'message': 'Existing order found for this plate'
+                }, status=200)
+
+            if not use_existing and not existing_customer_id:
+                # Inform frontend that a customer exists for this plate
+                return JsonResponse({
+                    'success': True,
+                    'existing_customer': {
+                        'id': existing_vehicle.customer.id,
+                        'full_name': existing_vehicle.customer.full_name,
+                        'phone': existing_vehicle.customer.phone,
+                    },
+                    'existing_vehicle': {
+                        'id': existing_vehicle.id,
+                        'plate': existing_vehicle.plate_number,
+                        'make': existing_vehicle.make,
+                        'model': existing_vehicle.model,
+                    }
+                }, status=200)
 
         from .services import CustomerService, VehicleService
 
@@ -122,18 +144,27 @@ def api_start_order(request):
             if service_selection:
                 desc += ": " + ", ".join(service_selection)
 
-            # Create the order
-            order = Order.objects.create(
-                customer=customer,
+            # Create the order only if one doesn't already exist for this vehicle
+            existing_order = Order.objects.filter(
                 vehicle=vehicle,
-                branch=user_branch,
-                type=order_type,
-                status='created',
-                started_at=timezone.now(),
-                description=desc,
-                priority='medium',
-                estimated_duration=estimated_duration if estimated_duration else None,
-            )
+                status='created'
+            ).first()
+
+            if existing_order:
+                order = existing_order
+            else:
+                # Create new order
+                order = Order.objects.create(
+                    customer=customer,
+                    vehicle=vehicle,
+                    branch=user_branch,
+                    type=order_type,
+                    status='created',
+                    started_at=timezone.now(),
+                    description=desc,
+                    priority='medium',
+                    estimated_duration=estimated_duration if estimated_duration else None,
+                )
 
         return JsonResponse({'success': True, 'order_id': order.id, 'order_number': order.order_number, 'plate_number': plate_number, 'started_at': order.started_at.isoformat()}, status=201)
 
@@ -221,9 +252,13 @@ def started_orders_dashboard(request):
     search_query = request.GET.get('search', '').strip()
     
     # Get all started orders for this branch
+    # Exclude temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
     orders = Order.objects.filter(
         branch=user_branch,
         status=status_filter
+    ).exclude(
+        customer__full_name__startswith='Plate ',
+        customer__phone__startswith='PLATE_'
     ).select_related('customer', 'vehicle')
     
     # Apply search filter
@@ -249,24 +284,35 @@ def started_orders_dashboard(request):
         orders_by_plate[plate].append(order)
     
     # Calculate statistics
+    # Exclude orders with temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
     total_started = Order.objects.filter(
         branch=user_branch,
         status='created'
+    ).exclude(
+        customer__full_name__startswith='Plate ',
+        customer__phone__startswith='PLATE_'
     ).count()
     
     today_started = Order.objects.filter(
         branch=user_branch,
         status='created',
         started_at__date=timezone.now().date()
+    ).exclude(
+        customer__full_name__startswith='Plate ',
+        customer__phone__startswith='PLATE_'
     ).count()
     
     # Calculate repeated vehicles today (vehicles with 2+ orders started today)
+    # Exclude orders with temporary customers
     from django.db.models import Count
     today_orders = Order.objects.filter(
         branch=user_branch,
         status='created',
         started_at__date=timezone.now().date(),
         vehicle__isnull=False
+    ).exclude(
+        customer__full_name__startswith='Plate ',
+        customer__phone__startswith='PLATE_'
     ).values('vehicle__plate_number').annotate(order_count=Count('id')).filter(order_count__gte=2)
     repeated_vehicles_today = today_orders.count()
     
@@ -822,24 +868,35 @@ def api_started_orders_kpis(request):
     try:
         user_branch = get_user_branch(request.user)
         
+        # Exclude orders with temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
         total_started = Order.objects.filter(
             branch=user_branch,
             status='created'
+        ).exclude(
+            customer__full_name__startswith='Plate ',
+            customer__phone__startswith='PLATE_'
         ).count()
         
         today_started = Order.objects.filter(
             branch=user_branch,
             status='created',
             started_at__date=timezone.now().date()
+        ).exclude(
+            customer__full_name__startswith='Plate ',
+            customer__phone__startswith='PLATE_'
         ).count()
         
         # Calculate repeated vehicles today (vehicles with 2+ orders started today)
+        # Exclude orders with temporary customers
         from django.db.models import Count
         today_orders = Order.objects.filter(
             branch=user_branch,
             status='created',
             started_at__date=timezone.now().date(),
             vehicle__isnull=False
+        ).exclude(
+            customer__full_name__startswith='Plate ',
+            customer__phone__startswith='PLATE_'
         ).values('vehicle__plate_number').annotate(order_count=Count('id')).filter(order_count__gte=2)
         repeated_vehicles_today = today_orders.count()
         

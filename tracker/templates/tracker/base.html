@@ -299,16 +299,7 @@
                                     </a>
                                 </li>
 
-                                <!-- Started Orders quick link -->
-                                <li class="sidebar-list">
-                                    <i class="fa fa-clock-o"></i>
-                                    <a class="sidebar-link sidebar-title" href="{% url 'tracker:started_orders_dashboard' %}">
-                                        <svg class="stroke-icon">
-                                            <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-list"></use>
-                                        </svg>
-                                        <span>Started Orders</span>
-                                    </a>
-                                </li>
+                            
 
                                 
                                 <!-- Customers -->
@@ -338,7 +329,7 @@
                                     </a>
                                     <ul class="sidebar-submenu">
                                         <li><a href="{% url 'tracker:orders_list' %}">All Orders</a></li>
-                                 
+                                        <li><a href="{% url 'tracker:overrun_reports' %}">Overrun Reports</a></li>
                                         <li><a href="{% url 'tracker:inquiries' %}">Inquiries</a></li>
                                     </ul>
                                 </li>
@@ -371,7 +362,7 @@
                                         <span>Analytics</span>
                                     </a>
                                     <ul class="sidebar-submenu">
-                                        <li><a href="{% url 'tracker:analytics' %}">Overview</a></li>
+        
                                      
                                         <li><a href="{% url 'tracker:analytics_service' %}">Service Analytics</a></li>
                                     
@@ -405,12 +396,7 @@
                                     <ul class="sidebar-submenu">
                                         <li><a href="{% url 'tracker:invoice_list' %}">All Invoices</a></li>
                                         <li><a href="{% url 'tracker:invoice_create' %}">Create Invoice</a></li>
-                                        <li>
-                                          <div class="p-2">
-                                            <small class="text-muted">Recent Invoices</small>
-                                            <ul class="list-unstyled mb-0" id="recentInvoicesList"></ul>
-                                          </div>
-                                        </li>
+                                      
                                     </ul>
                                 </li>
 

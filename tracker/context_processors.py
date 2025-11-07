@@ -18,7 +18,11 @@ def header_notifications(request):
     try:
         from .utils import scope_queryset
         cutoff = timezone.now() - timedelta(hours=24)
-        qs = scope_queryset(Order.objects.select_related('customer'), request.user, request).filter(status='in_progress', started_at__lte=cutoff)
+        # Exclude temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
+        qs = scope_queryset(Order.objects.select_related('customer'), request.user, request).filter(status='in_progress', started_at__lte=cutoff).exclude(
+            customer__full_name__startswith='Plate ',
+            customer__phone__startswith='PLATE_'
+        )
         data = list(qs.order_by('-started_at')[:5].values('id','order_number','customer__full_name','started_at'))
         return {
             'stale_in_progress_count': qs.count(),

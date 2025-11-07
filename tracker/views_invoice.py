@@ -154,6 +154,46 @@ def invoice_create(request, order_id=None):
             if not customer_obj:
                 customer_obj = customer
 
+            # If no order was linked and we have a customer, create a new order for this invoice
+            # But only if this is not a temporary customer
+            if not order and customer_obj:
+                # Check if this is a temporary customer
+                is_temp_customer = (hasattr(customer_obj, 'full_name') and str(customer_obj.full_name).startswith('Plate ')) and \
+                                   (hasattr(customer_obj, 'phone') and str(customer_obj.phone).startswith('PLATE_'))
+                
+                if not is_temp_customer:
+                    # Get vehicle if available
+                    vehicle_plate = request.POST.get('reference')
+                    if vehicle_plate:
+                        try:
+                            vehicle = VehicleService.create_or_get_vehicle(
+                                customer=customer_obj,
+                                plate_number=vehicle_plate,
+                                make='',
+                                model='',
+                                vehicle_type=''
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to create/get vehicle while creating invoice: {e}")
+                            vehicle = None
+                    else:
+                        vehicle = None
+                    
+                    # Create a new order for this customer
+                    try:
+                        order_type = request.POST.get('order_type_fixed') or request.POST.get('order_type') or 'service'
+                        order = OrderService.create_order(
+                            customer=customer_obj,
+                            order_type=order_type,
+                            branch=user_branch,
+                            vehicle=vehicle,
+                            description=request.POST.get('order_description', ''),
+                            estimated_duration=request.POST.get('estimated_duration')
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to create order while creating invoice: {e}")
+                        order = None
+
             invoice = form.save(commit=False)
             invoice.branch = user_branch
             if order:

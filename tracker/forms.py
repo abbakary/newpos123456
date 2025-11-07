@@ -1262,7 +1262,11 @@ class InvoiceForm(forms.ModelForm):
             if user is not None:
                 branch = get_user_branch(user)
                 if branch:
-                    self.fields['existing_customer'].queryset = Customer.objects.filter(branch=branch).order_by('full_name')
+                    # Exclude temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
+                    self.fields['existing_customer'].queryset = Customer.objects.filter(branch=branch).exclude(
+                        full_name__startswith='Plate ',
+                        phone__startswith='PLATE_'
+                    ).order_by('full_name')
                 else:
                     self.fields['existing_customer'].queryset = Customer.objects.none()
             else:

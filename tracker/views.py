@@ -199,8 +199,15 @@ def dashboard(request: HttpRequest):
     today = timezone.localdate()
     
     # Branch-scoped base querysets
-    orders_qs = scope_queryset(Order.objects.all(), request.user, request)
-    customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
+    # Exclude temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
+    orders_qs = scope_queryset(Order.objects.all(), request.user, request).exclude(
+        customer__full_name__startswith='Plate ',
+        customer__phone__startswith='PLATE_'
+    )
+    customers_qs = scope_queryset(Customer.objects.all(), request.user, request).exclude(
+        full_name__startswith='Plate ',
+        phone__startswith='PLATE_'
+    )
 
     # Remove caching to ensure fresh data
     metrics = None
@@ -247,6 +254,7 @@ def dashboard(request: HttpRequest):
         ).count()
 
         # New orders created today (status 'created' within today's range)
+        # Exclude temporary customers
         try:
             new_orders_today = orders_qs.filter(status="created").filter(created_at__gte=start_dt, created_at__lte=end_dt).count()
         except Exception:
@@ -254,6 +262,7 @@ def dashboard(request: HttpRequest):
             new_orders_today = orders_qs.filter(status="created").count()
 
         # New customers this month - MySQL compatible
+        # Exclude temporary customers
         from .utils.mysql_compat import month_start_filter
         new_customers_this_month = customers_qs.filter(
             month_start_filter('registration_date')
@@ -610,7 +619,11 @@ def customers_list(request: HttpRequest):
 
     from django.db.models import Count
 
-    customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
+    # Exclude temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
+    customers_qs = scope_queryset(Customer.objects.all(), request.user, request).exclude(
+        full_name__startswith='Plate ',
+        phone__startswith='PLATE_'
+    )
     qs = customers_qs.annotate(
         returning_dates=Count('orders__created_at__date', distinct=True)
     ).order_by('-registration_date')
@@ -2587,7 +2600,11 @@ def orders_list(request: HttpRequest):
     date_range = request.GET.get("date_range", "")
     customer_id = request.GET.get("customer", "")
 
-    orders = scope_queryset(Order.objects.select_related("customer", "vehicle").order_by("-created_at"), request.user, request)
+    # Exclude temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
+    orders = scope_queryset(Order.objects.select_related("customer", "vehicle").order_by("-created_at"), request.user, request).exclude(
+        customer__full_name__startswith='Plate ',
+        customer__phone__startswith='PLATE_'
+    )
 
     # Apply filters
     if status == "overdue":
@@ -2617,13 +2634,18 @@ def orders_list(request: HttpRequest):
         orders = orders.filter(created_at__gte=start_year)
 
     # Get counts for stats
-    total_orders = scope_queryset(Order.objects.all(), request.user, request).count()
-    pending_orders = scope_queryset(Order.objects.filter(status="created"), request.user, request).count()
-    active_orders = scope_queryset(Order.objects.filter(status__in=["created", "in_progress", "overdue"]), request.user, request).count()
-    completed_today = scope_queryset(Order.objects.filter(status="completed", completed_at__date=timezone.localdate()), request.user, request).count()
-    urgent_orders = scope_queryset(Order.objects.filter(priority="urgent"), request.user, request).count()
+    # Exclude temporary customers (those with full_name starting with "Plate " and phone starting with "PLATE_")
+    base_orders_qs = scope_queryset(Order.objects.all(), request.user, request).exclude(
+        customer__full_name__startswith='Plate ',
+        customer__phone__startswith='PLATE_'
+    )
+    total_orders = base_orders_qs.count()
+    pending_orders = base_orders_qs.filter(status="created").count()
+    active_orders = base_orders_qs.filter(status__in=["created", "in_progress", "overdue"]).count()
+    completed_today = base_orders_qs.filter(status="completed", completed_at__date=timezone.localdate()).count()
+    urgent_orders = base_orders_qs.filter(priority="urgent").count()
     # Overdue KPI: respect user branch scoping and optional admin branch filter
-    overdue_count = scope_queryset(Order.objects.filter(status="overdue"), request.user, request).count()
+    overdue_count = base_orders_qs.filter(status="overdue").count()
     revenue_today = 0
 
     paginator = Paginator(orders, 20)

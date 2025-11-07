@@ -968,29 +968,6 @@
 
 <!-- Capture Signature Modal -->
 <div class="modal fade" id="completeModal" tabindex="-1" aria-hidden="true">
-  <!-- Overrun modal for signature flow -->
-  <div class="modal fade" id="completeOverrunModal" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header bg-warning text-dark">
-          <h5 class="modal-title">Delay Reason Required</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p>This order exceeded its estimated duration. Please provide a reason for the delay before completing.</p>
-          <div class="mb-3">
-            <label class="form-label">Reason</label>
-            <textarea id="completeOverrunReason" class="form-control" rows="4" placeholder="Enter reason..."></textarea>
-            <div id="completeOverrunError" class="text-danger mt-2" style="display:none;"></div>
-          </div>
-        </div>
-        <div class="modal-footer bg-light">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" id="completeOverrunSave" class="btn btn-warning">Save & Continue</button>
-        </div>
-      </div>
-    </div>
-  </div>
   <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
       <div class="modal-header bg-success text-white">
@@ -1044,6 +1021,30 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-success" id="footerSignAndComplete"><i class="fa fa-check me-1"></i>Complete Order</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overrun modal for signature flow -->
+<div class="modal fade" id="completeOverrunModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title">Delay Reason Required</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>This order exceeded its estimated duration. Please provide a reason for the delay before completing.</p>
+        <div class="mb-3">
+          <label class="form-label">Reason</label>
+          <textarea id="completeOverrunReason" class="form-control" rows="4" placeholder="Enter reason..."></textarea>
+          <div id="completeOverrunError" class="text-danger mt-2" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="completeOverrunSave" class="btn btn-warning">Save & Continue</button>
       </div>
     </div>
   </div>

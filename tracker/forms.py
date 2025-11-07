@@ -1306,7 +1306,7 @@ class InvoiceForm(forms.ModelForm):
 class InvoiceLineItemForm(forms.ModelForm):
     class Meta:
         model = InvoiceLineItem
-        fields = ['description', 'item_type', 'inventory_item', 'quantity', 'unit', 'unit_price']
+        fields = ['description', 'item_type', 'inventory_item', 'quantity', 'unit', 'unit_price', 'tax_rate']
         widgets = {
             'description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Item description'}),
             'item_type': forms.Select(attrs={'class': 'form-select'}),
@@ -1314,6 +1314,7 @@ class InvoiceLineItemForm(forms.ModelForm):
             'quantity': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
             'unit': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., PCS, UNT, HR'}),
             'unit_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'tax_rate': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'max': '100', 'placeholder': 'VAT %'}),
         }
 
 

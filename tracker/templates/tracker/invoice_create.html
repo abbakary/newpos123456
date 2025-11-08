@@ -637,6 +637,12 @@
                 const resetBtn = document.getElementById('resetUploadBtn');
 
                 if (!area || !fileInput) return;
+                // Expose existing order id to JS (used when creating invoice from extraction)
+                {% if order %}
+                window.EXISTING_ORDER_ID = {{ order.id }};
+                {% else %}
+                window.EXISTING_ORDER_ID = null;
+                {% endif %}
 
                 function show(el){ el && el.classList.remove('d-none'); }
                 function hide(el){ el && el.classList.add('d-none'); }

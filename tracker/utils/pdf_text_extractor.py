@@ -438,6 +438,10 @@ def parse_invoice_data(text: str) -> dict:
                 except Exception:
                     pass
 
+    # Finalize any pending item
+    if current_item and ('description' in current_item or 'value' in current_item):
+        items.append(current_item)
+
     return {
         'invoice_no': invoice_no,
         'code_no': code_no,

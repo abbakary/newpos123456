@@ -260,10 +260,10 @@ def api_upload_extract_invoice(request):
         inv.reference = (header.get('invoice_no') or header.get('code_no') or '').strip() or f"UPLOAD-{timezone.now().strftime('%Y%m%d%H%M%S')}"
         inv.notes = (header.get('address') or '').strip() or ''
 
-        # Set monetary fields with proper defaults
-        inv.subtotal = header.get('net_value') or Decimal('0')
-        inv.tax_amount = header.get('vat') or Decimal('0')
-        inv.total_amount = header.get('gross_value') or (inv.subtotal + inv.tax_amount)
+        # Set monetary fields with proper defaults (use correct field names from extraction)
+        inv.subtotal = header.get('subtotal') or Decimal('0')
+        inv.tax_amount = header.get('tax') or Decimal('0')
+        inv.total_amount = header.get('total') or (inv.subtotal + inv.tax_amount)
 
         # Ensure totals are valid
         if inv.subtotal is None:

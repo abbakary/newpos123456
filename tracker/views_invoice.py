@@ -103,7 +103,7 @@ def api_upload_extract_invoice(request):
     # Run PDF text extractor (no OCR required)
     try:
         from tracker.utils.pdf_text_extractor import extract_from_bytes as extract_pdf_text
-        extracted = extract_pdf_text(file_bytes, uploaded_file.name if uploaded_file else 'document.pdf')
+        extracted = extract_pdf_text(file_bytes, uploaded.name if uploaded else 'document.pdf')
     except Exception as e:
         logger.error(f"PDF extraction error: {e}\n{traceback.format_exc()}")
         return JsonResponse({

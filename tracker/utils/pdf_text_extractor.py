@@ -281,12 +281,21 @@ def parse_invoice_data(text: str) -> dict:
     # Extract customer name - more careful pattern matching
     customer_name = None
 
-    # First try the exact "Customer Name" pattern
+    # First try the exact "Customer Name" pattern with or without colon
+    # Pattern 1: "Customer Name: VALUE" or "Customer NameVALUE"
     m = re.search(r'Customer\s*Name\s*[:=]?\s*([^\n:{{]+?)(?=\n(?:Address|Tel|Attended|Kind|Reference|PI|Code)|$)', normalized_text, re.I | re.MULTILINE | re.DOTALL)
     if m:
         customer_name = m.group(1).strip()
         # Clean up any trailing field indicators
         customer_name = re.sub(r'\s+(?:Address|Tel|Phone|Fax|Email|Attended|Kind|Ref)\b.*$', '', customer_name, flags=re.I).strip()
+
+    # Pattern 2: Handle case where Customer Name appears on same line as value (no separator)
+    if not customer_name:
+        m = re.search(r'Customer\s*Name\s+([A-Z][^\n]+?)(?=\n|$)', normalized_text, re.I | re.MULTILINE)
+        if m:
+            customer_name = m.group(1).strip()
+            # Clean up trailing labels
+            customer_name = re.sub(r'\s+(?:Address|Tel|Phone|Fax|Code|PI|Date)\b.*$', '', customer_name, flags=re.I).strip()
 
     # If still not found, try alternative patterns
     if not customer_name:

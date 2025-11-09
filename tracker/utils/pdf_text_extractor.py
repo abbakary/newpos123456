@@ -186,12 +186,41 @@ def parse_invoice_data(text: str) -> dict:
         r'Code(?:\s|:)'
     ])
 
+    # Helper to validate if text looks like a customer name vs address
+    def is_likely_customer_name(text):
+        """Check if text looks like a company/person name vs an address."""
+        if not text:
+            return False
+        # Customer names are usually shorter, no commas or street keywords
+        address_keywords = ['street', 'avenue', 'road', 'box', 'p.o', 'po', 'floor', 'apt', 'suite', 'district', 'region', 'country']
+        is_short = len(text) < 80
+        has_no_address_keywords = not any(kw in text.lower() for kw in address_keywords)
+        is_capitalized = text[0].isupper() if text else False
+        return is_short and has_no_address_keywords and is_capitalized
+
+    def is_likely_address(text):
+        """Check if text looks like an address."""
+        if not text:
+            return False
+        # Addresses often contain locations, street info, numbers, or are multi-word with specific patterns
+        address_indicators = ['street', 'avenue', 'road', 'box', 'p.o', 'po', 'floor', 'apt', 'suite',
+                             'district', 'region', 'city', 'country', 'zip', 'postal', 'dar', 'dar-es', 'tanzania', 'nairobi', 'kenya']
+        has_indicators = any(ind in text.lower() for ind in address_indicators)
+        has_numbers = bool(re.search(r'\d+', text))
+        is_longer = len(text) > 15
+        return has_indicators or (has_numbers and is_longer)
+
     # Extract customer name
     customer_name = extract_field_value([
         r'Customer\s*Name',
         r'Bill\s*To',
-        r'Buyer\s*Name'
+        r'Buyer\s*Name',
+        r'Client\s*Name'
     ])
+
+    # Validate customer name - if it looks like an address, clear it
+    if customer_name and is_likely_address(customer_name) and not is_likely_customer_name(customer_name):
+        customer_name = None
 
     # Extract address (look for lines after "Address" label)
     address = None

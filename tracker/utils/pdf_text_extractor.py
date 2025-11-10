@@ -797,9 +797,8 @@ def parse_invoice_data(text: str) -> dict:
                     # Clean up excessive spaces
                     full_text = ' '.join(full_text.split())
 
-                    # Skip only if description is too short (less than 1 character)
-                    # Allow single descriptive words like "ITEM" as valid descriptions
-                    if not full_text or (len(full_text) < 1 and full_text.upper() not in ['ITEM', 'SERVICE', 'PRODUCT']):
+                    # Skip only if description is essentially empty
+                    if not full_text:
                         continue
 
                     # Initialize item

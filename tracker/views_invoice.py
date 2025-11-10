@@ -358,6 +358,16 @@ def api_upload_extract_invoice(request):
                     item_code = (it.get('item_code') or it.get('code') or '').strip() or None
                     description = (it.get('description') or 'Item').strip()
 
+                    # Skip header-like rows accidentally parsed as items (e.g., "Customer Name", "Address", etc.)
+                    desc_l = description.lower()
+                    header_keywords = [
+                        'customer name', 'address', 'tel', 'telephone', 'fax', 'email', 'date',
+                        'code', 'code no', 'reference', 'pi no', 'kind attn', 'attended by', 'notes',
+                        'delivery', 'payment', 'vat', 'gross value', 'net value', 'subtotal', 'total'
+                    ]
+                    if any(desc_l == k or desc_l.startswith(k) for k in header_keywords):
+                        continue
+
                     # Create line item with proper unit_price
                     line = InvoiceLineItem(
                         invoice=inv,
@@ -473,7 +483,7 @@ def invoice_create(request, order_id=None):
                 if cd.get('existing_customer'):
                     customer_obj = cd.get('existing_customer')
                 else:
-                    name = (cd.get('customer_full_name') or '').strip()
+                    name = (cd.get('customer_name') or '').strip()
                     phone = (cd.get('customer_phone') or '').strip()
 
                     if name and phone:

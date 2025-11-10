@@ -500,6 +500,11 @@
         <div class="block">
           <div class="kv-row"><span class="label">Remarks</span><span class="sep">:</span><span class="remarks">{% if invoice.remarks %}{{ invoice.remarks }}{% elif invoice.notes %}{{ invoice.notes }}{% else %}Looking forward to your confirmed order{% endif %}</span></div>
         </div>
+        {% if invoice.attended_by %}
+        <div class="block">
+          <div class="kv-row"><span class="label">Attended By</span><span class="sep">:</span><span>{{ invoice.attended_by }}</span></div>
+        </div>
+        {% endif %}
         <div class="block" style="margin-top: 8px;">
           <p style="font-size:10px; margin:0 0 2px 0;"><strong>NOTE 1 :</strong> <em>Payment in TSHS accepted at the prevailing rate on the date of payment.</em></p>
           <p style="font-size:10px; margin:0 0 2px 0;">&nbsp;&nbsp;<strong>2 :</strong> <em>Proforma Invoice is Valid for 2 weeks from date of Proforma.</em></p>

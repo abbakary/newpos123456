@@ -389,62 +389,65 @@ def parse_invoice_data(text: str) -> dict:
             # Too long to be a name, probably corrupted
             customer_name = None
 
-    # Extract address - improved to capture P.O.BOX patterns with proper boundaries
+    # Extract address - specifically look for P.O.BOX format
     address = None
 
-    # Pattern 1: Specifically look for P.O.BOX format which is most reliable for East African invoices
-    # Format: P.O.BOX [NUMBERS] followed by city and country
-    pob_pattern = re.compile(r'P\.O\.BOX\s+(\d+)\s*(.*)(?=\n|$)', re.I | re.MULTILINE)
-    pob_match = pob_pattern.search(normalized_text)
+    # Split text into lines for easier processing
+    lines = [line.strip() for line in normalized_text.split('\n') if line.strip()]
+
+    # Pattern 1: Find P.O.BOX with the box number
+    pob_match = None
+    pob_line_idx = None
+    for idx, line in enumerate(lines):
+        if re.search(r'P\.?O\.?\s*BOX', line, re.I):
+            pob_match = re.search(r'P\.?O\.?\s*BOX\s*(\d+)', line, re.I)
+            pob_line_idx = idx
+            break
 
     if pob_match:
-        pob_number = pob_match.group(1).strip()
-        rest_text = pob_match.group(2).strip()
+        # Found P.O.BOX, now collect address parts
+        pob_number = pob_match.group(1)
+        address_parts = [f"P.O.BOX {pob_number}"]
 
-        # Look for city/country after P.O.BOX on same or next lines
-        following_text = []
-        if rest_text and len(rest_text) > 1:
-            following_text.append(rest_text)
+        # Check lines immediately after for city/country (usually uppercase)
+        if pob_line_idx is not None:
+            for j in range(pob_line_idx + 1, min(pob_line_idx + 5, len(lines))):
+                next_line = lines[j]
 
-        # Check next few lines for city/country
-        lines = normalized_text.split('\n')
-        try:
-            pob_line_idx = None
-            for idx, line in enumerate(lines):
-                if re.search(r'P\.O\.BOX\s+\d+', line, re.I):
-                    pob_line_idx = idx
+                # Stop if we hit a field label (lowercase or field names)
+                if re.match(r'^(?:Tel|Fax|Attended|Kind|Reference|PI|Code|Type|Date|Email|Phone|Del)', next_line, re.I):
                     break
 
-            if pob_line_idx is not None:
-                # Collect next lines that contain location info (DAR, TANZANIA, etc.)
-                for j in range(pob_line_idx + 1, min(pob_line_idx + 4, len(lines))):
-                    next_line = lines[j].strip()
-                    # Stop if we hit a field label
-                    if re.match(r'^(?:Tel|Fax|Del|PI|Reference|Kind|Attended|Type|Code)\b', next_line, re.I):
+                # Keep lines that look like address (uppercase, city names, country names, etc.)
+                if next_line and len(next_line) > 1:
+                    # Check for location indicators or all-caps format
+                    if re.search(r'\b(DAR|NAIROBI|KAMPALA|KIGALI|TANZANIA|KENYA|UGANDA|RWANDA|BURUNDI|SALAAM)\b', next_line, re.I) or \
+                       re.match(r'^[A-Z\s\-]+$', next_line):
+                        address_parts.append(next_line)
+                    elif next_line.isupper() or (len(next_line) > 5 and next_line[0].isupper() and ',' not in next_line):
+                        # Likely address line (starts with capital, no commas)
+                        address_parts.append(next_line)
+                    else:
+                        # Not an address line, stop
                         break
-                    # Keep lines with location indicators or uppercase words (typical city/country format)
-                    if next_line and (re.search(r'\b(DAR|NAIROBI|KAMPALA|TANZANIA|KENYA|UGANDA|SALAAM)\b', next_line, re.I) or re.match(r'^[A-Z\s\-]+$', next_line)):
-                        following_text.append(next_line)
-        except Exception:
-            pass
 
-        # Construct address
-        address_parts = [f"P.O.BOX {pob_number}"] + following_text
-        address = ' '.join([p for p in address_parts if p]).strip()
-
-        if len(address) < 5:
+        address = ' '.join(address_parts).strip()
+        if len(address) < 8:  # Must be longer than just "P.O.BOX XXX"
             address = None
 
-    # Pattern 2: If P.O.BOX not found, look for location-based address (city/country pattern)
+    # Pattern 2: If P.O.BOX not found, look for city/country patterns
     if not address:
-        # Match patterns like "DAR-ES-SALAAM\nTANZANIA" or "NAIROBI\nKENYA"
-        m = re.search(r'((?:DAR|DAR-ES-SALAAM|NAIROBI|KAMPALA|KIGALI)[^\n]*(?:\n[A-Z][^\n]*)?(?:\n(?:TANZANIA|KENYA|UGANDA|RWANDA|BURUNDI))?)', normalized_text, re.I | re.MULTILINE)
-        if m:
-            address = m.group(1).strip()
-            # Clean up any trailing labels
-            address = re.sub(r'\s+(?:Tel|Fax|Reference|PI|Code|Type|Date)\b.*', '', address, flags=re.I).strip()
-            if len(address) < 3:
-                address = None
+        for idx, line in enumerate(lines):
+            # Look for lines with known city/country names
+            if re.search(r'\b(DAR|DAR-ES-SALAAM|NAIROBI|KAMPALA|KIGALI)\b', line, re.I):
+                address_parts = [line]
+                # Check next line for country
+                if idx + 1 < len(lines):
+                    next_line = lines[idx + 1]
+                    if re.search(r'\b(TANZANIA|KENYA|UGANDA|RWANDA|BURUNDI)\b', next_line, re.I):
+                        address_parts.append(next_line)
+                address = ' '.join(address_parts).strip()
+                break
 
     # Smart fix: If customer_name is empty but address looks like it contains the name
     # Try to split the address and extract name from first line

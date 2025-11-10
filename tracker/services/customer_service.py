@@ -3,7 +3,6 @@ Centralized service for creating and managing customers, vehicles, and orders.
 This ensures consistent deduplication, visit tracking, and code generation across all flows.
 """
 
-import re
 import logging
 from decimal import Decimal
 from datetime import datetime
@@ -14,19 +13,13 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 
 from tracker.models import Customer, Vehicle, Order, InventoryItem, ServiceType, ServiceAddon, Branch
+from tracker.utils import normalize_phone
 
 logger = logging.getLogger(__name__)
 
 
 class CustomerService:
     """Service for managing customer creation with proper deduplication and visit tracking."""
-
-    @staticmethod
-    def normalize_phone(phone: str) -> str:
-        """Normalize phone number by removing all non-digit characters."""
-        if not phone:
-            return ""
-        return re.sub(r'\D', '', str(phone))
 
     @staticmethod
     def find_duplicate_customer(

@@ -853,14 +853,13 @@
 
                 if (createBtn){
                   createBtn.addEventListener('click', function(){
-                    // Try to create invoice using extraction: call API again but expect server to create when plate or matched customer exists
                     const d = window.__lastInvoiceExtraction || {};
-                    if (!d){ errorBox.style.display='block'; errorBox.textContent='No extraction available'; return; }
-                    // server-side create already attempted earlier; instruct user to apply to form and submit if create failed
-                    // For now hide modal and let user apply then create
-                    reviewModal && reviewModal.hide();
-                    applyBtn.click();
-                    alert('Applied extraction to form. Please review fields and click Create Invoice to finalize.');
+                    if (!d || !d.header) {
+                      alert('No extraction data available. Please try uploading again.');
+                      return;
+                    }
+                    if (reviewModal) reviewModal.hide();
+                    if (applyBtn) applyBtn.click();
                   });
                 }
 

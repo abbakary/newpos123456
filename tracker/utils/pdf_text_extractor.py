@@ -838,7 +838,16 @@ def parse_invoice_data(text: str) -> dict:
 
             # Extract all numbers from the line
             numbers = re.findall(r'[0-9\,]+\.?\d*', line_stripped)
-            float_numbers = [float(n.replace(',', '')) for n in numbers] if numbers else []
+            float_numbers = []
+            if numbers:
+                for n in numbers:
+                    try:
+                        cleaned = n.replace(',', '').strip()
+                        if cleaned and cleaned != '.' and cleaned != '':
+                            float_numbers.append(float(cleaned))
+                    except (ValueError, AttributeError):
+                        # Skip numbers that can't be converted
+                        continue
 
             # Detect unit/type indicators (PCS, NOS, UNT, HR, KG, etc.)
             unit_match = re.search(r'\b(NOS|PCS|KG|HR|LTR|PIECES?|UNITS?|BOX|CASE|SETS?|PC|KIT|UNT)\b', line_stripped, re.I)
